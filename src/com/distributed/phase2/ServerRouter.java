@@ -24,12 +24,18 @@ public class ServerRouter {
 
 
     public static void main(String[] args){
-        peerMap = new HashMap<String, InetSocketAddress>();
-        serverRouterAddress = InetAddress.getLoopbackAddress();
-        AllocateThread allocHandler = new AllocateThread(serverRouterAddress);
-        allocHandler.start();
-        LookupThread lookupHandler = new LookupThread(serverRouterAddress);
-        lookupHandler.start();
+        try {
+            peerMap = new HashMap<String, InetSocketAddress>();
+            serverRouterAddress = InetAddress.getLocalHost();
+            AllocateThread allocHandler = new AllocateThread(serverRouterAddress);
+            allocHandler.start();
+            LookupThread lookupHandler = new LookupThread(serverRouterAddress);
+            lookupHandler.start();
+        } catch (UnknownHostException e) {
+            System.err.println(e.getMessage());
+        }
+        System.out.println(String.format("Binding serverRouter to address %s", serverRouterAddress.toString()));
+
     }
 
     static class AllocateThread extends Thread {
@@ -50,7 +56,8 @@ public class ServerRouter {
                     ServerSocket allocationSocket = new ServerSocket(ports[0],0,bindAddress);
                     Socket allocationClientSocket = allocationSocket.accept();
                     allocationObjectIn = new ObjectInputStream(allocationClientSocket.getInputStream());
-                    allocateClient((PeerAllocationRequest) allocationObjectIn.readObject());
+                    PeerAllocationRequest peerAllocationRequest = (PeerAllocationRequest) allocationObjectIn.readObject();
+                    allocateClient(peerAllocationRequest);
                     allocationObjectIn.close();
                     allocationClientSocket.close();
                     allocationSocket.close();
@@ -81,8 +88,7 @@ public class ServerRouter {
                 System.out.println(String.format("  Request was completed by ServerRouter at %s, peer is at %s", bindAddress.toString(), peerMap.get(request.getClientName()).toString()));
                 socketObjectOutputStream.close();
                 socket.close();
-            }
-            else if(!nextServerRouter.equals(null)){
+            } else if (nextServerRouter != null) {
                 //forward request for peer to nextServerRouter. it will respond to the original requester
                 Socket socket = new Socket(nextServerRouter, ports[2]);
                 ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -92,7 +98,13 @@ public class ServerRouter {
             }
             else{
                 //the request was unable to be resolved
-                System.out.println(String.format("  Unable to resolve request, ServerRouter does not know peer"));
+                Socket socket = new Socket(request.getRequesterAddress().getAddress(), ports[3]);
+                ObjectOutputStream socketObjectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                socketObjectOutputStream.writeObject(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+                System.err.println(String.format("  Unable to resolve request, ServerRouter does not know peer"));
+                socketObjectOutputStream.close();
+                socket.close();
+
             }
         }
 
