@@ -9,6 +9,7 @@ import java.io.ObjectOutputStream;
 import java.net.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Scanner;
 
 public class ServerRouter {
     private static Map peerMap;
@@ -36,6 +37,35 @@ public class ServerRouter {
         }
         System.out.println(String.format("Binding serverRouter to address %s", serverRouterAddress.toString()));
 
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            System.out.print("serverRouter: ");
+            handleInput(scanner.nextLine());
+        }
+
+    }
+
+    private static void handleInput(String input) {
+        String[] commandString = input.split(" ");
+        try {
+            switch (commandString[0]) {
+                case "set":
+                    if (commandString.length < 3) {
+                        System.out.println("[Invalid command !]");
+                        return;
+                    } else if (commandString[1].equalsIgnoreCase("serverrouter")) {
+                        nextServerRouter = InetAddress.getByName(commandString[2]);
+                        System.out.println(String.format("Acknowledged other serverRouter at %s", nextServerRouter));
+                    } else
+                        System.out.println("[Invalid command !]");
+                    break;
+                default:
+                    System.out.println("[Command not found !]");
+            }
+        } catch (UnknownHostException e) {
+            System.out.println("[Invalid address! Try again]");
+            return;
+        }
     }
 
     static class AllocateThread extends Thread {
@@ -93,6 +123,7 @@ public class ServerRouter {
                 Socket socket = new Socket(nextServerRouter, ports[2]);
                 ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
                 objectOutputStream.writeObject(request);
+                System.out.println(String.format("  Request was forwarded to nextServerRouter at %s", nextServerRouter.toString()));
                 objectOutputStream.close();
                 socket.close();
             }

@@ -138,6 +138,7 @@ public class Peer {
             InetSocketAddress otherPeer = resolvePeer(peerName);
 
             Socket socket = new Socket(otherPeer.getAddress(), otherPeer.getPort());
+            socket.setSoTimeout(3000);
             ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
             objectOutputStream.writeObject(messageObject);
             objectOutputStream.close();
