@@ -48,7 +48,7 @@ public class ServerRouter {
 
     }
 
-    //Interperets commands from user providing goofy command-line type interface
+    //Interprets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");
         try {
@@ -74,9 +74,17 @@ public class ServerRouter {
 
     //thread responds to peers wishing to announce their address to the ServerRouter
     static class AllocateThread extends Thread {
-        private InetAddress bindAddress;
+        private ServerSocket allocationSocket;
+
+        //thread constructor opens ServerSocket to listen
         AllocateThread(InetAddress bindAddress){
-            this.bindAddress = bindAddress;
+            try {
+                //open ServerSocket for allocation request
+                allocationSocket = new ServerSocket(ports[0], 0, bindAddress);
+            }catch (IOException e) {
+                System.err.println("ServerRouter was unable to listen for allocation requests! Terminating...");
+                System.exit(1001);
+            }
         }
 
         //method takes peer name and IP/Port from request object and adds them to the peerMap
@@ -88,15 +96,13 @@ public class ServerRouter {
         public void run(){
             while(true){
                 try{
-                    //open ServerSocket for allocation request
-                    ServerSocket allocationSocket = new ServerSocket(ports[0],0,bindAddress);
+                    //ServerRouter listens (waits) for peer allocation request
                     Socket allocationClientSocket = allocationSocket.accept();
                     allocationObjectIn = new ObjectInputStream(allocationClientSocket.getInputStream());
                     PeerAllocationRequest peerAllocationRequest = (PeerAllocationRequest) allocationObjectIn.readObject();
                     allocateClient(peerAllocationRequest);
                     allocationObjectIn.close();
                     allocationClientSocket.close();
-                    allocationSocket.close();
                 }
                 catch (IOException e) {
                     e.printStackTrace();
@@ -110,8 +116,16 @@ public class ServerRouter {
     //Thread responds to peers wishing to get the IP of a specific peer
     static class LookupThread extends Thread {
         private InetAddress bindAddress;
+        private ServerSocket lookupSocket;
+
         LookupThread(InetAddress bindAddress){
-            this.bindAddress = bindAddress;
+            try {
+                this.bindAddress = bindAddress;
+                lookupSocket = new ServerSocket(ports[2], 0, bindAddress);
+            }catch (IOException e) {
+                System.err.println("ServerRouter was unable to listen for lookup requests! Terminating...");
+                System.exit(1002);
+            }
         }
 
         //method replies with IP of peer in 'request'
@@ -153,14 +167,12 @@ public class ServerRouter {
         public void run(){
             while(true){
                 try{
-                    //ServerSocket listens for lookup request
-                    ServerSocket lookupSocket = new ServerSocket(ports[2],0,bindAddress);
+                    //ServerSocket listens (waits) for lookup request
                     Socket lookupClientSocket = lookupSocket.accept();
                     lookupObjectIn = new ObjectInputStream(lookupClientSocket.getInputStream());
                     findPeer((PeerAddressRequest) lookupObjectIn.readObject());
                     lookupObjectIn.close();
                     lookupClientSocket.close();
-                    lookupSocket.close();
                 }
                 catch (IOException e) {
                     e.printStackTrace();

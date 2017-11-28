@@ -26,15 +26,8 @@ public class Peer {
     private static ObjectInputStream messageObjectReciever, discoveryObjectReciever;
 
     public static void main(String[] args){
-        try {
-            //sets address and port for peer to listen for messages. Every peer uses port 6000, this will probably need
-            //to be random, and saved in the ServerRouter if we want to run multiple peers per host
-            peerAddress = new InetSocketAddress(InetAddress.getLocalHost(), 3456);
-            MessageListener messageListenerThread = new MessageListener();
-            messageListenerThread.start();
-        } catch (UnknownHostException e) {
-            System.err.println(e.getMessage());
-        }
+        MessageListener messageListenerThread = new MessageListener();
+        messageListenerThread.start();
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.print("peer$: ");
@@ -42,7 +35,7 @@ public class Peer {
         }
     }
 
-    //Interperets commands from user providing goofy command-line type interface
+    //Interprets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");
         switch (commandString[0]) {
@@ -172,19 +165,29 @@ public class Peer {
 
     //thread listens for incomming message on machine's IP and port from 'peerAddress'
     static class MessageListener extends Thread{
+        private ServerSocket serverSocket;
+        public MessageListener(){
+            try {
+                //creating a ServerSocket with port zero will let the system automatically select a random free port,
+                //allows us to run multiple peers on a single host
+                serverSocket = new ServerSocket(0, 0, InetAddress.getLocalHost());
+                peerAddress = new InetSocketAddress(serverSocket.getInetAddress(), serverSocket.getLocalPort());
+            }catch (IOException e){
+                System.err.println("Peer was unable to listen for connections! Terminating!");
+                System.exit(1000);
+            }
+        }
+
         public void run(){
             try{
                 while(true){
-                    ServerSocket serverSocket = new ServerSocket(peerAddress.getPort(),0,peerAddress.getAddress());
                     //thread execution waits here until message object is received
                     Socket messageListener = serverSocket.accept();
                     messageObjectReciever = new ObjectInputStream(messageListener.getInputStream());
                     MessageObject messageObject = (MessageObject)  messageObjectReciever.readObject();
-                    System.out.println(String.format("\n%s :: %s", messageObject.getSender(), messageObject.getData()));
-                    System.out.print("peer$: ");
+                    System.out.println(String.format("\n%s :: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
                     messageObjectReciever.close();
                     messageListener.close();
-                    serverSocket.close();
                 }
             }catch(IOException e){
                 e.printStackTrace();
