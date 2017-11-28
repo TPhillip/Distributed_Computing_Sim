@@ -27,13 +27,14 @@ public class Peer {
 
     public static void main(String[] args){
         try {
-            peerAddress = new InetSocketAddress(InetAddress.getLocalHost(), 6000);
+            //sets address and port for peer to listen for messages. Every peer uses port 6000, this will probably need
+            //to be random, and saved in the ServerRouter if we want to run multiple peers per host
+            peerAddress = new InetSocketAddress(InetAddress.getLocalHost(), 3456);
             MessageListener messageListenerThread = new MessageListener();
             messageListenerThread.start();
         } catch (UnknownHostException e) {
             System.err.println(e.getMessage());
         }
-
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.print("peer$: ");
@@ -41,6 +42,7 @@ public class Peer {
         }
     }
 
+    //Interperets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");
         switch (commandString[0]) {
@@ -93,11 +95,13 @@ public class Peer {
         }
     }
 
+    //method announces this peer's name and IP address and port to the ServerRouter
     private static void publish(InetAddress routerAddress) {
         try{
             Socket socket = new Socket(routerAddress, ports[0]);
             socket.setSoTimeout(3000);
             ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+            //peerAllocationRequest object simplifies the act of sending multiple values to the ServerRouter
             objectOutputStream.writeObject(new PeerAllocationRequest(name, peerAddress));
             objectOutputStream.close();
             socket.close();
@@ -107,39 +111,45 @@ public class Peer {
         }
     }
 
+    //method takes a peer name and attempts to connect to ServerRouter defined by serverRouterAddress and return its ip and port
     private static InetSocketAddress resolvePeer(String peerName) throws IOException, ClassNotFoundException, InterruptedException, PeerNotFoundException {
-        //peer sends lookup request object
+        //Socket used to send request to ServerSocket listening in ServerRouter's AllocateThread
         Socket socket = new Socket(serverRouterAddress, ports[2]);
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
         objectOutputStream.writeObject(new PeerAddressRequest(peerName, peerAddress));
         objectOutputStream.close();
         socket.close();
 
-        InetSocketAddress otherPeerAddress;
-
-        //peer listens for server response
+        //peer listens for server response after sending request
+        //this could cause problems if multiple peers try to resolve on the same host at the same time
         ServerSocket serverSocket = new ServerSocket(ports[3],0,peerAddress.getAddress());
         serverSocket.setSoTimeout(2000);
         Socket discoveryListener = serverSocket.accept();
         discoveryObjectReciever = new ObjectInputStream(discoveryListener.getInputStream());
-        otherPeerAddress = (InetSocketAddress) discoveryObjectReciever.readObject();
+        //de-serialize object containing peer's IP address and port
+        InetSocketAddress otherPeerAddress = (InetSocketAddress) discoveryObjectReciever.readObject();
         discoveryObjectReciever.close();
         discoveryListener.close();
         serverSocket.close();
+        //If ServerRouter returns an InetSocketAddress with port == 0, then the peer does not exist
         if (otherPeerAddress.getPort() == 0)
             throw new PeerNotFoundException();
         return otherPeerAddress;
     }
 
+    //method to send a message to another peer
     private static void sendMsg(String peerName, String message){
         System.out.println(String.format("Sending message to %s...", peerName));
         try{
             MessageObject messageObject = new MessageObject(name, message);
+            //get the IP address and port of the peer that we're sending the message to
             InetSocketAddress otherPeer = resolvePeer(peerName);
 
+            //connect socket to other peer's ServerSocket
             Socket socket = new Socket(otherPeer.getAddress(), otherPeer.getPort());
             socket.setSoTimeout(3000);
             ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+            //serialize message object and send it to the other peer
             objectOutputStream.writeObject(messageObject);
             objectOutputStream.close();
             socket.close();
@@ -160,11 +170,13 @@ public class Peer {
         }
     }
 
+    //thread listens for incomming message on machine's IP and port from 'peerAddress'
     static class MessageListener extends Thread{
         public void run(){
             try{
                 while(true){
                     ServerSocket serverSocket = new ServerSocket(peerAddress.getPort(),0,peerAddress.getAddress());
+                    //thread execution waits here until message object is received
                     Socket messageListener = serverSocket.accept();
                     messageObjectReciever = new ObjectInputStream(messageListener.getInputStream());
                     MessageObject messageObject = (MessageObject)  messageObjectReciever.readObject();
@@ -175,7 +187,6 @@ public class Peer {
                     serverSocket.close();
                 }
             }catch(IOException e){
-
                 e.printStackTrace();
             }catch(ClassNotFoundException e){
                 e.printStackTrace();
