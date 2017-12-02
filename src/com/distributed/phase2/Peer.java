@@ -5,9 +5,7 @@ import com.distributed.phase2.components.PeerAddressRequest;
 import com.distributed.phase2.components.PeerAllocationRequest;
 import com.distributed.phase2.components.PeerNotFoundException;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.*;
 import java.util.Scanner;
 
@@ -38,12 +36,13 @@ public class Peer {
     //Interprets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");
+        if (commandString.length < 3) {
+            System.out.println("[Invalid command !]");
+            return;
+        }
         switch (commandString[0]) {
             case "send":
-                if (commandString.length < 3) {
-                    System.out.println("[Invalid command !]");
-                    return;
-                } else if (name == null || serverRouterAddress == null) {
+                if (name == null || serverRouterAddress == null) {
                     System.out.println("[Name and serverrouter address must be set first !]");
                     return;
                 }
@@ -52,11 +51,17 @@ public class Peer {
                     message = message + " " + commandString[i];
                 sendMsg(commandString[1], message);
                 break;
-            case "set":
-                if (commandString.length < 3) {
-                    System.out.println("[Invalid command !]");
+            case "sendFile":
+                try {
+                    File file = new File(commandString[2]);
+                    sendFile(commandString[1], file);
                     return;
+                } catch (FileNotFoundException e) {
+                    System.err.println("[File not found !]");
+                } catch (IOException e) {
+                    System.err.println("[Encountered IO error reading file !]");
                 }
+            case "set":
                 if (commandString[1].equalsIgnoreCase("name")) {
                     if (name != null) {
                         System.out.println("[Name is already set !]");
@@ -64,7 +69,7 @@ public class Peer {
                     }
                     name = commandString[2];
                     return;
-                } else if (commandString[1].equalsIgnoreCase("serverrouter")) {
+                } else if (commandString[1].equalsIgnoreCase("serverrouter") || commandString[1].equalsIgnoreCase("sr")) {
                     try {
                         if (name == null) {
                             System.out.println("[name must be set first !]");
@@ -130,11 +135,23 @@ public class Peer {
         return otherPeerAddress;
     }
 
+    private static void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
+        FileInputStream fileInputStream = new FileInputStream(file);
+        byte[] fileBytes = new byte[fileInputStream.available()];
+        fileInputStream.read(fileBytes);
+        MessageObject messageObject = new MessageObject(peerName, fileBytes);
+        sendMessageObject(peerName, messageObject);
+    }
+
     //method to send a message to another peer
     private static void sendMsg(String peerName, String message){
         System.out.println(String.format("Sending message to %s...", peerName));
-        try{
-            MessageObject messageObject = new MessageObject(name, message);
+        MessageObject messageObject = new MessageObject(name, message);
+        sendMessageObject(peerName, messageObject);
+    }
+
+    private static void sendMessageObject(String peerName, MessageObject message) {
+        try {
             //get the IP address and port of the peer that we're sending the message to
             InetSocketAddress otherPeer = resolvePeer(peerName);
 
@@ -143,19 +160,18 @@ public class Peer {
             socket.setSoTimeout(3000);
             ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
             //serialize message object and send it to the other peer
-            objectOutputStream.writeObject(messageObject);
+            objectOutputStream.writeObject(message);
             objectOutputStream.close();
             socket.close();
-            sleep(500);
         } catch (SocketTimeoutException e) {
             System.err.println("ServerRouter did not resolve in time, Message was not sent...");
             return;
-        }catch (IOException e){
-            System.err.println("Error connecting to ServerRouter for address lookup, Message was not sent...");
+        } catch (IOException e) {
+            System.err.println(String.format("IO error: %s", e.getMessage()));
             return;
-        }catch (ClassNotFoundException e){
+        } catch (ClassNotFoundException e) {
             e.printStackTrace();
-        }catch (InterruptedException e){
+        } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (PeerNotFoundException e) {
             System.err.println(String.format("ServerRouter was unable to find a peer by the name \"%s\", Message was not sent...", peerName));
@@ -185,7 +201,10 @@ public class Peer {
                     Socket messageListener = serverSocket.accept();
                     messageObjectReciever = new ObjectInputStream(messageListener.getInputStream());
                     MessageObject messageObject = (MessageObject)  messageObjectReciever.readObject();
-                    System.out.println(String.format("\n%s :: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
+                    if (messageObject.containsMessage())
+                        System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
+                    if (messageObject.containsFile())
+                        System.out.println(String.format("\nFile recieved from %s: (%s bytes)\npeer$:", messageObject.getSender(), messageObject.getFileBytes().length));
                     messageObjectReciever.close();
                     messageListener.close();
                 }
