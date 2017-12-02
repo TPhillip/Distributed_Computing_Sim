@@ -114,6 +114,7 @@ public class Peer {
         //Socket used to send request to ServerSocket listening in ServerRouter's AllocateThread
         Socket socket = new Socket(serverRouterAddress, ports[2]);
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+        long startTime = System.currentTimeMillis();
         objectOutputStream.writeObject(new PeerAddressRequest(peerName, peerAddress));
         objectOutputStream.close();
         socket.close();
@@ -126,12 +127,14 @@ public class Peer {
         discoveryObjectReciever = new ObjectInputStream(discoveryListener.getInputStream());
         //de-serialize object containing peer's IP address and port
         InetSocketAddress otherPeerAddress = (InetSocketAddress) discoveryObjectReciever.readObject();
+        long endTime = System.currentTimeMillis();
         discoveryObjectReciever.close();
         discoveryListener.close();
         serverSocket.close();
         //If ServerRouter returns an InetSocketAddress with port == 0, then the peer does not exist
         if (otherPeerAddress.getPort() == 0)
             throw new PeerNotFoundException();
+        System.out.print(String.format("    Lookup completed in %d ms", (endTime - startTime)));
         return otherPeerAddress;
     }
 
@@ -139,7 +142,7 @@ public class Peer {
         FileInputStream fileInputStream = new FileInputStream(file);
         byte[] fileBytes = new byte[fileInputStream.available()];
         fileInputStream.read(fileBytes);
-        MessageObject messageObject = new MessageObject(peerName, fileBytes);
+        MessageObject messageObject = new MessageObject(name, fileBytes, file.getName());
         sendMessageObject(peerName, messageObject);
     }
 
@@ -198,13 +201,22 @@ public class Peer {
             try{
                 while(true){
                     //thread execution waits here until message object is received
+
                     Socket messageListener = serverSocket.accept();
+                    long startTime = System.currentTimeMillis();
                     messageObjectReciever = new ObjectInputStream(messageListener.getInputStream());
                     MessageObject messageObject = (MessageObject)  messageObjectReciever.readObject();
+                    long endTime = System.currentTimeMillis();
                     if (messageObject.containsMessage())
                         System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
-                    if (messageObject.containsFile())
-                        System.out.println(String.format("\nFile recieved from %s: (%s bytes)\npeer$:", messageObject.getSender(), messageObject.getFileBytes().length));
+                    if (messageObject.containsFile()) {
+                        System.out.println(String.format("Recieved \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
+                        File outFile = new File(messageObject.getFileName());
+                        FileOutputStream fileOutputStream = new FileOutputStream(outFile);
+                        fileOutputStream.write(messageObject.getFileBytes());
+                        fileOutputStream.close();
+                    }
+                    System.out.print(String.format("Message recieved in %d ms\npeer$: ", (endTime - startTime)));
                     messageObjectReciever.close();
                     messageListener.close();
                 }
