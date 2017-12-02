@@ -48,6 +48,20 @@ public class ServerRouter {
 
     }
 
+    public ServerRouter(String otherServerRouter) {
+        try {
+            nextServerRouter = InetAddress.getByName(otherServerRouter);
+            AllocateThread allocHandler = new AllocateThread(serverRouterAddress);
+            allocHandler.start();
+            //creates and runs thread to listen for peer lookup requests
+            LookupThread lookupHandler = new LookupThread(serverRouterAddress);
+            lookupHandler.start();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return;
+        }
+    }
+
     //Interprets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");

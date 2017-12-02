@@ -33,6 +33,18 @@ public class Peer {
         }
     }
 
+    public Peer(String name, String serverRouter) {
+        MessageListener messageListenerThread = new MessageListener();
+        messageListenerThread.start();
+        try {
+            this.name = name;
+            publish(InetAddress.getByName(serverRouter));
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return;
+        }
+    }
+
     //Interprets commands from user providing goofy command-line type interface
     private static void handleInput(String input) {
         String[] commandString = input.split(" ");
@@ -138,7 +150,7 @@ public class Peer {
         return otherPeerAddress;
     }
 
-    private static void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
+    public static void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
         FileInputStream fileInputStream = new FileInputStream(file);
         byte[] fileBytes = new byte[fileInputStream.available()];
         fileInputStream.read(fileBytes);
