@@ -4,14 +4,22 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class Metrics {
     private static Peer[] allPeers;
     private static String otherPeersName;
+    private static String serverRouterAddress;
 
     public static void main(String[] args) {
         int peers = 100;
-        String serverRouterAddress = "messenio";
+        
+        try {
+            serverRouterAddress = InetAddress.getLocalHost().toString();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return;
+        }
         otherPeersName = args[1];
 
         allPeers = new Peer[peers];
