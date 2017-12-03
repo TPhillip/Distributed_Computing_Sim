@@ -7,6 +7,9 @@ import com.distributed.phase2.components.PeerNotFoundException;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Scanner;
 
 import static java.lang.Thread.sleep;
@@ -22,12 +25,12 @@ public class Peer {
     private static int[] ports = {5555,5556,5557,5558};
     private static String name;
     private static ObjectInputStream messageObjectReciever, discoveryObjectReciever;
-    private static File logFile;
+
 
     public static void main(String[] args){
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
-        logFile = new File("log.txt");
+
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.print("peer$: ");
@@ -225,21 +228,24 @@ public class Peer {
                     if (messageObject.containsMessage())
                         System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
                     if (messageObject.containsFile()) {
-
-                        try (FileWriter fw = new FileWriter("log.txt", true);
-                             BufferedWriter bw = new BufferedWriter(fw);
-                             PrintWriter out = new PrintWriter(bw)) {
-                            out.println(String.format(" %s, %s , %d", messageObject.getFileName(), messageObject.getFileBytes().length, (endTime - startTime)));
-                        } catch (IOException e) {
-                            //exception handling left as an exercise for the reader
-                        }
-
                         System.out.println(String.format("Recieved \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
                         File outFile = new File(messageObject.getFileName());
                         FileOutputStream fileOutputStream = new FileOutputStream(outFile);
                         fileOutputStream.write(messageObject.getFileBytes());
                         fileOutputStream.close();
                     }
+
+                    try {
+                        Files.write(Paths.get("log.txt"),
+                                String.format(" %s, %s , %d\n",
+                                        messageObject.getFileName(),
+                                        messageObject.getFileBytes().length,
+                                        (endTime - startTime)).getBytes(),
+                                StandardOpenOption.APPEND);
+                    } catch (IOException e) {
+                        //uhmmm.....
+                    }
+
                     System.out.print(String.format("Message recieved in %d ms\npeer$: ", (endTime - startTime)));
                     messageObjectReciever.close();
                     messageListener.close();
