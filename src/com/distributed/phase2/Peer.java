@@ -7,35 +7,34 @@ import com.distributed.phase2.components.PeerNotFoundException;
 
 import java.io.*;
 import java.net.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.Scanner;
-
-import static java.lang.Thread.sleep;
 
 public class Peer {
-    private static InetAddress serverRouterAddress;
-    private static InetSocketAddress peerAddress;
+    private InetAddress serverRouterAddress;
+    private InetSocketAddress peerAddress;
     //port-num determines action since request is only a serialized object
     //ports[0]: allocate new peer
     //ports[1]: process peer lookup request
     //ports[2]: peer discovery/announce
     //ports[3]: peer discovery request
-    private static int[] ports = {5555,5556,5557,5558};
-    private static String name;
-    private static ObjectInputStream messageObjectReciever, discoveryObjectReciever;
+    private int[] ports = {5555, 5556, 5557, 5558};
+    private String name;
+    private ObjectInputStream messageObjectReciever, discoveryObjectReciever;
 
-
-    public static void main(String[] args){
+    public Peer() {
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
+    }
 
-        Scanner scanner = new Scanner(System.in);
-        while (true) {
-            System.out.print("peer$: ");
-            handleInput(scanner.nextLine());
-        }
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public InetAddress getServerRouterAddress() {
+        return serverRouterAddress;
     }
 
     public Peer(String name, String serverRouter) {
@@ -50,68 +49,8 @@ public class Peer {
         }
     }
 
-    //Interprets commands from user providing goofy command-line type interface
-    private static void handleInput(String input) {
-        String[] commandString = input.split(" ");
-        if (commandString.length < 3) {
-            System.out.println("[Invalid command !]");
-            return;
-        }
-        switch (commandString[0]) {
-            case "send":
-                if (name == null || serverRouterAddress == null) {
-                    System.out.println("[Name and serverrouter address must be set first !]");
-                    return;
-                }
-                String message = "";
-                for (int i = 2; i < commandString.length; i++)
-                    message = message + " " + commandString[i];
-                sendMsg(commandString[1], message);
-                break;
-            case "sendFile":
-                try {
-                    File file = new File(commandString[2]);
-                    sendFile(commandString[1], file);
-                    return;
-                } catch (FileNotFoundException e) {
-                    System.err.println("[File not found !]");
-                } catch (IOException e) {
-                    System.err.println("[Encountered IO error reading file !]");
-                }
-            case "set":
-                if (commandString[1].equalsIgnoreCase("name")) {
-                    if (name != null) {
-                        System.out.println("[Name is already set !]");
-                        return;
-                    }
-                    name = commandString[2];
-                    return;
-                } else if (commandString[1].equalsIgnoreCase("serverrouter") || commandString[1].equalsIgnoreCase("sr")) {
-                    try {
-                        if (name == null) {
-                            System.out.println("[name must be set first !]");
-                            return;
-                        }
-                        if (serverRouterAddress != null) {
-                            System.out.println("[serverrouter is already set !]");
-                            return;
-                        }
-                        publish(InetAddress.getByName(commandString[2]));
-                        return;
-                    } catch (UnknownHostException e) {
-                        System.out.println("[Invalid address! Try again]");
-                        return;
-                    }
-                } else
-                    System.out.println("[Invalid command !]");
-                break;
-            default:
-                System.out.println("[Command not found !]");
-        }
-    }
-
     //method announces this peer's name and IP address and port to the ServerRouter
-    private static void publish(InetAddress routerAddress) {
+    public void publish(InetAddress routerAddress) {
         try{
             Socket socket = new Socket(routerAddress, ports[0]);
             socket.setSoTimeout(3000);
@@ -127,7 +66,7 @@ public class Peer {
     }
 
     //method takes a peer name and attempts to connect to ServerRouter defined by serverRouterAddress and return its ip and port
-    private static InetSocketAddress resolvePeer(String peerName) throws IOException, ClassNotFoundException, InterruptedException, PeerNotFoundException {
+    public InetSocketAddress resolvePeer(String peerName) throws IOException, ClassNotFoundException, InterruptedException, PeerNotFoundException {
         //Socket used to send request to ServerSocket listening in ServerRouter's AllocateThread
         Socket socket = new Socket(serverRouterAddress, ports[2]);
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -156,12 +95,12 @@ public class Peer {
             System.out.println(String.format("    Lookup completed in %d ms", (endTime - startTime)));
             return otherPeerAddress;
         } catch (BindException e) {
-            sleep(1000);
+            Thread.sleep(1000);
             return resolvePeer(peerName);
         }
     }
 
-    public static void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
+    public void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
         FileInputStream fileInputStream = new FileInputStream(file);
         byte[] fileBytes = new byte[fileInputStream.available()];
         fileInputStream.read(fileBytes);
@@ -171,14 +110,14 @@ public class Peer {
     }
 
     //method to send a message to another peer
-    private static void sendMsg(String peerName, String message){
+    public void sendMsg(String peerName, String message) {
         System.out.println(String.format("Sending message to %s...", peerName));
         MessageObject messageObject = new MessageObject(name, message);
         SendMessage sendMessageThread = new SendMessage(peerName, messageObject);
         sendMessageThread.start();
     }
 
-    static class SendMessage extends Thread {
+    private class SendMessage extends Thread {
         private String peerName;
         private MessageObject messageObject;
 
@@ -219,7 +158,7 @@ public class Peer {
     }
 
     //thread listens for incomming message on machine's IP and port from 'peerAddress'
-    static class MessageListener extends Thread{
+    private class MessageListener extends Thread {
         private ServerSocket serverSocket;
         public MessageListener(){
             try {
