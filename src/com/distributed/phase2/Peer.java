@@ -138,21 +138,27 @@ public class Peer {
 
         //peer listens for server response after sending request
         //this could cause problems if multiple peers try to resolve on the same host at the same time
-        ServerSocket serverSocket = new ServerSocket(ports[3],0,peerAddress.getAddress());
-        serverSocket.setSoTimeout(2000);
-        Socket discoveryListener = serverSocket.accept();
-        discoveryObjectReciever = new ObjectInputStream(discoveryListener.getInputStream());
-        //de-serialize object containing peer's IP address and port
-        InetSocketAddress otherPeerAddress = (InetSocketAddress) discoveryObjectReciever.readObject();
-        long endTime = System.currentTimeMillis();
-        discoveryObjectReciever.close();
-        discoveryListener.close();
-        serverSocket.close();
-        //If ServerRouter returns an InetSocketAddress with port == 0, then the peer does not exist
-        if (otherPeerAddress.getPort() == 0)
-            throw new PeerNotFoundException();
-        System.out.print(String.format("    Lookup completed in %d ms", (endTime - startTime)));
-        return otherPeerAddress;
+        //simple fix... handle BindException recursively, wait and try again (BAD!!!)
+        try {
+            ServerSocket serverSocket = new ServerSocket(ports[3], 0, peerAddress.getAddress());
+            serverSocket.setSoTimeout(2000);
+            Socket discoveryListener = serverSocket.accept();
+            discoveryObjectReciever = new ObjectInputStream(discoveryListener.getInputStream());
+            //de-serialize object containing peer's IP address and port
+            InetSocketAddress otherPeerAddress = (InetSocketAddress) discoveryObjectReciever.readObject();
+            long endTime = System.currentTimeMillis();
+            discoveryObjectReciever.close();
+            discoveryListener.close();
+            serverSocket.close();
+            //If ServerRouter returns an InetSocketAddress with port == 0, then the peer does not exist
+            if (otherPeerAddress.getPort() == 0)
+                throw new PeerNotFoundException();
+            System.out.println(String.format("    Lookup completed in %d ms", (endTime - startTime)));
+            return otherPeerAddress;
+        } catch (BindException e) {
+            sleep(1000);
+            return resolvePeer(peerName);
+        }
     }
 
     public static void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
@@ -160,43 +166,55 @@ public class Peer {
         byte[] fileBytes = new byte[fileInputStream.available()];
         fileInputStream.read(fileBytes);
         MessageObject messageObject = new MessageObject(name, fileBytes, file.getName());
-        sendMessageObject(peerName, messageObject);
+        SendMessage sendMessageThread = new SendMessage(peerName, messageObject);
+        sendMessageThread.start();
     }
 
     //method to send a message to another peer
     private static void sendMsg(String peerName, String message){
         System.out.println(String.format("Sending message to %s...", peerName));
         MessageObject messageObject = new MessageObject(name, message);
-        sendMessageObject(peerName, messageObject);
+        SendMessage sendMessageThread = new SendMessage(peerName, messageObject);
+        sendMessageThread.start();
     }
 
-    private static void sendMessageObject(String peerName, MessageObject message) {
-        try {
-            //get the IP address and port of the peer that we're sending the message to
-            InetSocketAddress otherPeer = resolvePeer(peerName);
+    static class SendMessage extends Thread {
+        private String peerName;
+        private MessageObject messageObject;
 
-            //connect socket to other peer's ServerSocket
-            Socket socket = new Socket(otherPeer.getAddress(), otherPeer.getPort());
-            socket.setSoTimeout(3000);
-            ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-            //serialize message object and send it to the other peer
-            objectOutputStream.writeObject(message);
-            objectOutputStream.close();
-            socket.close();
-        } catch (SocketTimeoutException e) {
-            System.err.println("ServerRouter did not resolve in time, Message was not sent...");
-            return;
-        } catch (IOException e) {
-            System.err.println(String.format("IO error"));
-            e.printStackTrace();
-            return;
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (PeerNotFoundException e) {
-            System.err.println(String.format("ServerRouter was unable to find a peer by the name \"%s\", Message was not sent...", peerName));
-            return;
+        public SendMessage(String peerName, MessageObject messageObject) {
+            this.peerName = peerName;
+            this.messageObject = messageObject;
+        }
+
+        public void run() {
+            try {
+                //get the IP address and port of the peer that we're sending the message to
+                InetSocketAddress otherPeer = resolvePeer(peerName);
+
+                //connect socket to other peer's ServerSocket
+                Socket socket = new Socket(otherPeer.getAddress(), otherPeer.getPort());
+                socket.setSoTimeout(3000);
+                ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                //serialize message object and send it to the other peer
+                objectOutputStream.writeObject(messageObject);
+                objectOutputStream.close();
+                socket.close();
+            } catch (SocketTimeoutException e) {
+                System.err.println("ServerRouter did not resolve in time, Message was not sent...");
+                return;
+            } catch (IOException e) {
+                System.err.println(String.format("IO error"));
+                e.printStackTrace();
+                return;
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (PeerNotFoundException e) {
+                System.err.println(String.format("ServerRouter was unable to find a peer by the name \"%s\", Message was not sent...", peerName));
+                return;
+            }
         }
     }
 
@@ -234,18 +252,6 @@ public class Peer {
                         fileOutputStream.write(messageObject.getFileBytes());
                         fileOutputStream.close();
                     }
-
-                    try {
-                        Files.write(Paths.get("log.txt"),
-                                String.format(" %s, %s , %d\n",
-                                        messageObject.getFileName(),
-                                        messageObject.getFileBytes().length,
-                                        (endTime - startTime)).getBytes(),
-                                StandardOpenOption.APPEND);
-                    } catch (IOException e) {
-                        //uhmmm.....
-                    }
-
                     System.out.print(String.format("Message recieved in %d ms\npeer$: ", (endTime - startTime)));
                     messageObjectReciever.close();
                     messageListener.close();
