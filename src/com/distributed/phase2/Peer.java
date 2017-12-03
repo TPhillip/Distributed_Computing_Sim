@@ -78,7 +78,7 @@ public class Peer {
         //peer listens for server response after sending request
         //this could cause problems if multiple peers try to resolve on the same host at the same time
         //simple fix... handle BindException recursively, wait and try again (BAD!!!)
-        try {
+        //try {
             ServerSocket serverSocket = new ServerSocket(ports[3], 0, peerAddress.getAddress());
             serverSocket.setSoTimeout(2000);
             Socket discoveryListener = serverSocket.accept();
@@ -94,10 +94,10 @@ public class Peer {
                 throw new PeerNotFoundException();
             System.out.println(String.format("    Lookup completed in %d ms", (endTime - startTime)));
             return otherPeerAddress;
-        } catch (BindException e) {
-            Thread.sleep(1000);
-            return resolvePeer(peerName);
-        }
+        //} //catch (BindException e) {
+            //Thread.sleep(1000);
+            //return resolvePeer(peerName);
+        //}
     }
 
     public void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
@@ -139,6 +139,7 @@ public class Peer {
                 objectOutputStream.writeObject(messageObject);
                 objectOutputStream.close();
                 socket.close();
+                return;
             } catch (SocketTimeoutException e) {
                 System.err.println("ServerRouter did not resolve in time, Message was not sent...");
                 return;
