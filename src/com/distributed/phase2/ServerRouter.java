@@ -129,7 +129,7 @@ public class ServerRouter {
 
     //Thread responds to peers wishing to get the IP of a specific peer
     static class LookupThread extends Thread {
-        private InetAddress bindAddress;
+        private static InetAddress bindAddress;
         private ServerSocket lookupSocket;
 
         LookupThread(InetAddress bindAddress){
@@ -143,54 +143,72 @@ public class ServerRouter {
         }
 
         //method replies with IP of peer in 'request'
-        private void findPeer(PeerAddressRequest request) throws IOException, InterruptedException{
-            System.out.println(String.format("%s requests location of peer %s", request.getRequesterAddress().toString(), request.getClientName()));
-            //if this ServerRouter know the peer in the request
-            if(peerMap.containsKey(request.getClientName())){
-                //send IP to requesting peer (IP is in the request object)
-                Socket socket = new Socket(request.getRequesterAddress().getAddress(), ports[3]);
-                ObjectOutputStream socketObjectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                socketObjectOutputStream.writeObject(peerMap.get(request.getClientName()));
-                System.out.println(String.format("  Request was completed by ServerRouter at %s, peer is at %s", bindAddress.toString(), peerMap.get(request.getClientName()).toString()));
-                socketObjectOutputStream.close();
-                socket.close();
-            //if this serverRouter does not know the peer in the request, but there is another ServerRouter available
-            } else if (nextServerRouter != null) {
-                //forward request for peer to nextServerRouter. it will respond to the original requester
-                Socket socket = new Socket(nextServerRouter, ports[2]);
-                ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                objectOutputStream.writeObject(request);
-                System.out.println(String.format("  Request was forwarded to nextServerRouter at %s", nextServerRouter.toString()));
-                objectOutputStream.close();
-                socket.close();
-            }
-            //this serverrouter does not know the peer in the request, and there is no other ServerRouter available
-            else{
-                //the request was unable to be resolved, send an "empty" InetSocketRequest object pointing to localhost
-                Socket socket = new Socket(request.getRequesterAddress().getAddress(), ports[3]);
-                ObjectOutputStream socketObjectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                //and InetSocketAddress with port == 0 represents a failed lookup attempt
-                socketObjectOutputStream.writeObject(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-                System.err.println(String.format("  Unable to resolve request, ServerRouter does not know peer"));
-                socketObjectOutputStream.close();
-                socket.close();
 
-            }
-        }
 
-        public void run(){
-            while(true){
-                try{
+        public void run() {
+            while (true) {
+                try {
                     //ServerSocket listens (waits) for lookup request
                     Socket lookupClientSocket = lookupSocket.accept();
                     lookupObjectIn = new ObjectInputStream(lookupClientSocket.getInputStream());
-                    findPeer((PeerAddressRequest) lookupObjectIn.readObject());
+                    ReplyLookup replyLookupThread = new ReplyLookup((PeerAddressRequest) lookupObjectIn.readObject());
+                    replyLookupThread.start();
                     lookupObjectIn.close();
                     lookupClientSocket.close();
-                }
-                catch (IOException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
-                }catch (ClassNotFoundException e){
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        static class ReplyLookup extends Thread {
+            private PeerAddressRequest par;
+
+            public ReplyLookup(PeerAddressRequest peerAddressRequest) {
+                this.par = peerAddressRequest;
+            }
+
+            private void findPeer(PeerAddressRequest request) throws IOException, InterruptedException {
+                System.out.println(String.format("%s requests location of peer %s", request.getRequesterAddress().toString(), request.getClientName()));
+                //if this ServerRouter know the peer in the request
+                if (peerMap.containsKey(request.getClientName())) {
+                    //send IP to requesting peer (IP is in the request object)
+                    Socket socket = new Socket(request.getRequesterAddress().getAddress(), ports[3]);
+                    ObjectOutputStream socketObjectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                    socketObjectOutputStream.writeObject(peerMap.get(request.getClientName()));
+                    System.out.println(String.format("  Request was completed by ServerRouter at %s, peer is at %s", bindAddress.toString(), peerMap.get(request.getClientName()).toString()));
+                    socketObjectOutputStream.close();
+                    socket.close();
+                    //if this serverRouter does not know the peer in the request, but there is another ServerRouter available
+                } else if (nextServerRouter != null) {
+                    //forward request for peer to nextServerRouter. it will respond to the original requester
+                    Socket socket = new Socket(nextServerRouter, ports[2]);
+                    ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                    objectOutputStream.writeObject(request);
+                    System.out.println(String.format("  Request was forwarded to nextServerRouter at %s", nextServerRouter.toString()));
+                    objectOutputStream.close();
+                    socket.close();
+                }
+                //this serverrouter does not know the peer in the request, and there is no other ServerRouter available
+                else {
+                    //the request was unable to be resolved, send an "empty" InetSocketRequest object pointing to localhost
+                    Socket socket = new Socket(request.getRequesterAddress().getAddress(), ports[3]);
+                    ObjectOutputStream socketObjectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                    //and InetSocketAddress with port == 0 represents a failed lookup attempt
+                    socketObjectOutputStream.writeObject(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+                    System.err.println(String.format("  Unable to resolve request, ServerRouter does not know peer"));
+                    socketObjectOutputStream.close();
+                    socket.close();
+
+                }
+            }
+
+            public void run() {
+                try {
+                    findPeer(par);
+                } catch (IOException e) {
                     e.printStackTrace();
                 }catch (InterruptedException e){
                     e.printStackTrace();
