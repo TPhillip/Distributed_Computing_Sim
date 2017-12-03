@@ -10,7 +10,7 @@ public class Metrics {
     private static Peer[] allPeers;
     private static String otherPeersName;
     private static String serverRouterAddress;
-    private static final String fileName = "conceptual.jpg";
+    private static String fileName;
 
     public static void main(String[] args) {
         int peerAmount = 100;
@@ -18,6 +18,7 @@ public class Metrics {
         try {
             serverRouterAddress = InetAddress.getLocalHost().getHostAddress();
             otherPeersName = args[1];
+            fileName = args[2];
             allPeers = new Peer[peerAmount];
 
             for (int i = 0; i < peerAmount; i++) {
