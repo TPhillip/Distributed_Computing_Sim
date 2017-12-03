@@ -13,9 +13,9 @@ public class Metrics {
 
     public static void main(String[] args) {
         int peers = 100;
-        
+
         try {
-            serverRouterAddress = InetAddress.getLocalHost().toString();
+            serverRouterAddress = InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
             e.printStackTrace();
             return;
@@ -29,7 +29,7 @@ public class Metrics {
         }
         System.out.println(allPeers.length);
         for (int i = 0; i < peers; i++) {
-            SendMsg sendThread = new SendMsg(i, otherPeersName, "README.md");
+            SendMsg sendThread = new SendMsg(i + 1, otherPeersName, "README.md");
             sendThread.start();
         }
     }
@@ -43,6 +43,11 @@ public class Metrics {
             this.i = i;
             this.revievingPeer = String.format("peer-%s%d", recievingPeer, i);
             this.fileName = fileName;
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                return;
+            }
         }
 
         public void run() {

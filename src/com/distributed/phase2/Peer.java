@@ -22,10 +22,12 @@ public class Peer {
     private static int[] ports = {5555,5556,5557,5558};
     private static String name;
     private static ObjectInputStream messageObjectReciever, discoveryObjectReciever;
+    private static File logFile;
 
     public static void main(String[] args){
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
+        logFile = new File("log.txt");
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.print("peer$: ");
@@ -182,7 +184,8 @@ public class Peer {
             System.err.println("ServerRouter did not resolve in time, Message was not sent...");
             return;
         } catch (IOException e) {
-            System.err.println(String.format("IO error: %s", e.getMessage()));
+            System.err.println(String.format("IO error"));
+            e.printStackTrace();
             return;
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
@@ -222,6 +225,15 @@ public class Peer {
                     if (messageObject.containsMessage())
                         System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
                     if (messageObject.containsFile()) {
+
+                        try (FileWriter fw = new FileWriter("log.txt", true);
+                             BufferedWriter bw = new BufferedWriter(fw);
+                             PrintWriter out = new PrintWriter(bw)) {
+                            out.println(String.format(" %s, %s , %d", messageObject.getFileName(), messageObject.getFileBytes().length, (endTime - startTime)));
+                        } catch (IOException e) {
+                            //exception handling left as an exercise for the reader
+                        }
+
                         System.out.println(String.format("Recieved \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
                         File outFile = new File(messageObject.getFileName());
                         FileOutputStream fileOutputStream = new FileOutputStream(outFile);
