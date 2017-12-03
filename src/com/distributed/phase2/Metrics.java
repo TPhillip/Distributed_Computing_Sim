@@ -11,7 +11,7 @@ public class Metrics {
     private static String serverRouterAddress;
 
     public static void main(String[] args) {
-        int peers = 100;
+        int peers = 10;
 
         try {
             serverRouterAddress = InetAddress.getLocalHost().getHostAddress();
