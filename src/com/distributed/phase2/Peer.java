@@ -19,10 +19,18 @@ public class Peer {
     private int[] ports = {5555, 5556, 5557, 5558};
     private String name;
     private ObjectInputStream messageObjectReciever, discoveryObjectReciever;
+    private static BufferedWriter fileWriter;
 
     public Peer() {
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
+        if (fileWriter == null){
+            try {
+                fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
+            }catch (IOException e){
+                System.err.println("Unable to open log file");
+            }
+        }
     }
 
     public String getName() {
@@ -41,11 +49,14 @@ public class Peer {
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
         try {
+            fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
             this.name = name;
             publish(InetAddress.getByName(serverRouter));
         } catch (UnknownHostException e) {
             e.printStackTrace();
             return;
+        } catch (IOException e){
+            System.err.println("Unable to open log file");
         }
     }
 
@@ -186,13 +197,17 @@ public class Peer {
                     if (messageObject.containsMessage())
                         System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
                     if (messageObject.containsFile()) {
-                        System.out.println(String.format("Recieved \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
+                        System.out.println(String.format("Received \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
                         File outFile = new File(messageObject.getFileName());
                         FileOutputStream fileOutputStream = new FileOutputStream(outFile);
                         fileOutputStream.write(messageObject.getFileBytes());
                         fileOutputStream.close();
                     }
-                    System.out.print(String.format("Message recieved in %d ms\npeer$: ", (endTime - startTime)));
+                    int length = (messageObject.containsFile() ? messageObject.getFileBytes().length : messageObject.getData().length());
+                    fileWriter.write(String.format("%s, %d, %d",messageObject.getFileName(), length, endTime - startTime));
+                    fileWriter.newLine();
+                    fileWriter.flush();
+                    System.out.print(String.format("Message received in %d ms\npeer$: ", (endTime - startTime)));
                     messageObjectReciever.close();
                     messageListener.close();
                 }
