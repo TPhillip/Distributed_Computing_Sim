@@ -19,20 +19,21 @@ public class Peer {
     private int[] ports = {5555, 5556, 5557, 5558};
     private String name;
     private ObjectInputStream messageObjectReciever, discoveryObjectReciever;
+    //static filewriter member allows all peers in metrics class to write to the same log file.
     private static BufferedWriter fileWriter;
 
+    //constructor used when peer is run individually from PeerRunner class
     public Peer() {
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
-        if (fileWriter == null){
-            try {
-                fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
-            }catch (IOException e){
-                System.err.println("Unable to open log file");
-            }
+        try {
+            fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
+        }catch (IOException e){
+            System.err.println("Unable to open log file");
         }
     }
 
+    //getters and setters....
     public String getName() {
         return name;
     }
@@ -45,11 +46,14 @@ public class Peer {
         return serverRouterAddress;
     }
 
+    //constructor used when peer is run from the Metrics class
     public Peer(String name, String serverRouter) {
         MessageListener messageListenerThread = new MessageListener();
         messageListenerThread.start();
         try {
-            fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
+            //instantiate fileWriter if this is the first peer to be created in metrics
+            if (fileWriter == null)
+                fileWriter = new BufferedWriter(new FileWriter("log.txt", true));
             this.name = name;
             publish(InetAddress.getByName(serverRouter));
         } catch (UnknownHostException e) {
@@ -88,7 +92,7 @@ public class Peer {
 
         //peer listens for server response after sending request
         //this could cause problems if multiple peers try to resolve on the same host at the same time
-        //simple fix... handle BindException recursively, wait and try again (BAD!!!)
+        //handle BindException recursively, wait and try again
         try {
             ServerSocket serverSocket = new ServerSocket(ports[3], 0, peerAddress.getAddress());
             serverSocket.setSoTimeout(2000);
@@ -103,7 +107,7 @@ public class Peer {
             //If ServerRouter returns an InetSocketAddress with port == 0, then the peer does not exist
             if (otherPeerAddress.getPort() == 0)
                 throw new PeerNotFoundException();
-            System.out.println(String.format("    Lookup completed in %d ms", (endTime - startTime)));
+            //System.out.println(String.format("    Lookup completed in %d ms", (endTime - startTime)));
             return otherPeerAddress;
         }catch (BindException e) {
             Thread.sleep(1000);
@@ -111,6 +115,7 @@ public class Peer {
         }
     }
 
+    //method ot send a file
     public void sendFile(String peerName, File file) throws FileNotFoundException, IOException {
         FileInputStream fileInputStream = new FileInputStream(file);
         byte[] fileBytes = new byte[fileInputStream.available()];
@@ -128,6 +133,7 @@ public class Peer {
         sendMessageThread.start();
     }
 
+    //sending messages in separate thread, (so large files don't hold up concurrent send operations in Metrics class)
     private class SendMessage extends Thread {
         private String peerName;
         private MessageObject messageObject;
@@ -169,7 +175,7 @@ public class Peer {
         }
     }
 
-    //thread listens for incomming message on machine's IP and port from 'peerAddress'
+    //thread listens for incoming message on machine's IP and port from 'peerAddress'
     private class MessageListener extends Thread {
         private ServerSocket serverSocket;
         public MessageListener(){
@@ -195,21 +201,24 @@ public class Peer {
                     MessageObject messageObject = (MessageObject)  messageObjectReciever.readObject();
                     long endTime = System.currentTimeMillis();
                     if (messageObject.containsMessage())
-                        System.out.print(String.format("\n%s: %s\npeer$: ", messageObject.getSender(), messageObject.getData()));
+                        System.out.println(String.format("\n%s: %s", messageObject.getSender(), messageObject.getData()));
                     if (messageObject.containsFile()) {
                         System.out.println(String.format("Received \"%s\" from %s: (%s bytes)", messageObject.getFileName(), messageObject.getSender(), messageObject.getFileBytes().length));
+                        //save transferred file to disk
                         File outFile = new File(messageObject.getFileName());
                         FileOutputStream fileOutputStream = new FileOutputStream(outFile);
                         fileOutputStream.write(messageObject.getFileBytes());
                         fileOutputStream.close();
                     }
                     int length = (messageObject.containsFile() ? messageObject.getFileBytes().length : messageObject.getData().length());
+                    //write metrics to log-file
                     fileWriter.write(String.format("%s, %d, %d",messageObject.getFileName(), length, endTime - startTime));
                     fileWriter.newLine();
                     fileWriter.flush();
-                    System.out.print(String.format("Message received in %d ms\npeer$: ", (endTime - startTime)));
+                    System.out.println(String.format("Message received in %d ms", (endTime - startTime)));
                     messageObjectReciever.close();
                     messageListener.close();
+                    System.out.print("peer$: ");
                 }
             }catch(IOException e){
                 e.printStackTrace();

@@ -23,7 +23,6 @@ public class ServerRouter {
     private static int[] ports = {5555,5556,5557,5558};
     private static ObjectInputStream allocationObjectIn, lookupObjectIn;
 
-
     public static void main(String[] args){
         try {
             //stores each peers IP/Port under a name
@@ -44,21 +43,6 @@ public class ServerRouter {
         while (true) {
             System.out.print("serverRouter$: ");
             handleInput(scanner.nextLine());
-        }
-
-    }
-
-    public ServerRouter(String otherServerRouter) {
-        try {
-            nextServerRouter = InetAddress.getByName(otherServerRouter);
-            AllocateThread allocHandler = new AllocateThread(serverRouterAddress);
-            allocHandler.start();
-            //creates and runs thread to listen for peer lookup requests
-            LookupThread lookupHandler = new LookupThread(serverRouterAddress);
-            lookupHandler.start();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-            return;
         }
     }
 
@@ -142,9 +126,6 @@ public class ServerRouter {
             }
         }
 
-        //method replies with IP of peer in 'request'
-
-
         public void run() {
             while (true) {
                 try {
@@ -163,6 +144,7 @@ public class ServerRouter {
             }
         }
 
+        //sub-thread replies to each peer lookup request
         static class ReplyLookup extends Thread {
             private PeerAddressRequest par;
 
@@ -170,6 +152,7 @@ public class ServerRouter {
                 this.par = peerAddressRequest;
             }
 
+            //method replies with IP of peer in 'request'
             private void findPeer(PeerAddressRequest request) throws IOException, InterruptedException {
                 System.out.println(String.format("%s requests location of peer %s", request.getRequesterAddress().toString(), request.getClientName()));
                 //if this ServerRouter know the peer in the request

@@ -7,6 +7,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 
+//this class allows a peer to be run independently, from the command line
 public class PeerRunner {
     private static Peer peer;
     public static void main(String[] args){
